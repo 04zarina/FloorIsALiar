@@ -141,8 +141,8 @@ const GLTFPlayerModel: React.FC<CharacterModelProps> = ({
     const center = new THREE.Vector3();
     box.getCenter(center);
 
-    // Target height: ~1 tile-width (~1.7 units)
-    const targetHeight = 1.7;
+    // Target height: ~0.7 × tile-width (~1.19 units) so the character doesn't block the view
+    const targetHeight = 1.19;
     const scale = size.y > 0.001 ? targetHeight / size.y : 1.0;
 
     // Offset in local space so feet sit at y = 0 and center is at (0, 0)
@@ -160,8 +160,7 @@ const GLTFPlayerModel: React.FC<CharacterModelProps> = ({
       appliedScale: scale,
       normalizedHeight: targetHeight,
       localOffset: { x: localOffset[0], y: localOffset[1], z: localOffset[2] },
-      worldPosition: worldPosition || [0, 0.45, -13.2],
-      animations: clipNames,
+      worldPosition: worldPosition || [0, 0.45, -13.2],      animations: clipNames,
     });
 
     return {

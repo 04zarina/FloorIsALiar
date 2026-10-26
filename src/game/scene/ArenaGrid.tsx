@@ -10,6 +10,7 @@ import {
   tryEnqueue,
   dequeue,
   getExpectedOrigin,
+  clearQueue,
   type MovementQueue,
 } from '../graph/movementQueue';
 import { TileMesh } from './TileMesh';
@@ -118,7 +119,7 @@ export const ArenaGrid: React.FC<ArenaGridProps> = ({
     if (currentTileId === 'start') {
       setIsExiting(false);
       setActiveTargetId(null);
-      queueRef.current.items = [];
+      clearQueue(queueRef.current);
     }
   }, [currentTileId]);
 

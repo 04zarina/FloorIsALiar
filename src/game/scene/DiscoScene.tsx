@@ -49,9 +49,9 @@ export const DiscoScene: React.FC<DiscoSceneProps> = ({
           alpha: false,
         }}
         camera={{
-          position: [0, 5, -6 * TILE_SPACING - 7], // Behind entry tile on 7x14 grid
-          fov: 46,
-          near: 0.1,
+          position: [0, 3, -6 * TILE_SPACING - 4], // Closer initial pos to match 3.5-back follow cam
+          fov: 52,
+          near: 0.3,   // Moved in so 1.19-unit character is never clipped
           far: 140,
         }}
         className="w-full h-full"

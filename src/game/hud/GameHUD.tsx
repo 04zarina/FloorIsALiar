@@ -24,6 +24,7 @@ export interface GameHUDProps {
   falls?: number;
   accuracy?: number;
   comboStreak?: number;
+  lives?: number;
   announcedRule?: string;
   isOverview: boolean;
   onToggleOverview: () => void;
@@ -42,6 +43,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   roundsSurvived = 0,
   falls = 0,
   comboStreak = 0,
+  lives = 3,
   announcedRule = 'Mustard tiles are bouncy!',
   isOverview,
   onToggleOverview,
