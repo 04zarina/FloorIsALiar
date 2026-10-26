@@ -1,0 +1,35 @@
+Implement Stage 2: Create the FloorIsALiar application shell based on the approved plan.
+
+Use React, Vite, TypeScript and Tailwind CSS. Create reusable components and a consistent design system.
+
+Pages and routes:
+- Landing page
+- Sign-up page
+- Login page
+- Game page
+- Dashboard page
+- Game history page
+- Leaderboard page
+- Profile/settings page
+- Not-found page
+
+Create a responsive navigation system, page layouts, buttons, forms, cards, modal components, loading indicators, empty states, error messages and toast notifications.
+
+Authentication requirements:
+- Design proper sign-up and login forms.
+- Validate required fields and show accessible error messages.
+- Prepare protected route handling and a persistent authentication state.
+- Do not implement fake authentication or pretend users are logged in.
+- Do not create a password table or store passwords yourself.
+- Keep the Supabase integration in a reusable service layer.
+
+Design:
+- Disco theme, lights, and vfx 
+- Clean typography, readable contrast and subtle animations.
+- Professional gaming dashboard cards.
+- Responsive layouts for desktop and mobile.
+- Clear focus states and keyboard accessibility.
+
+Create the project files, install only necessary dependencies, and ensure the application builds and runs.
+
+Do not implement the full 3D game or fabricate dashboard data at this stage. Keep the code modular and document the components you created.

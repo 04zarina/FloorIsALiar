@@ -1,0 +1,42 @@
+Act as a senior full-stack engineer, Three.js developer, game designer, database designer, and application security reviewer.
+
+I am building a university lab project named FloorIsALiar. Follow my instructor's eight-stage workflow and do not skip stages.
+
+Required technology:
+* React, Vite and TypeScript
+* Three.js using @react-three/fiber and @react-three/drei
+* Tailwind CSS for styling
+* Supabase Auth and PostgreSQL
+* Recharts for dashboard analytics
+* Git and GitHub for version control
+* Vercel for deployment if compatible with the free tier
+
+GAME CONCEPT:
+A 3D floating arena of multicolored tiles. The player starts at an entry tile and must reach an exit tile by crossing tiles. There are multiple routes (shorter/riskier and longer/safer). Each round, the game announces a rule about a tile color (e.g. "Blue tiles are bouncy"). The rule is randomly TRUE or FALSE each round. The player chooses whether to trust or ignore it when picking a route. Each tile color has a real hidden effect (e.g. bounce, slide, crumble, safe). A new rule, and a new layout, appears every round. The player character is a custom 3D model (GLB) that I will provide.
+
+Functional requirements:
+1. Professional sign-up, login and logout pages.
+2. Protected game, dashboard and profile routes.
+3. A fully playable 3D game as described above.
+4. Actual Three.js raycasting for tile hover and click-to-move detection.
+5. Game state with timer, score, rounds survived, falls, trust accuracy, combo streak and decision time.
+6. A statistics dashboard that retrieves actual saved records.
+7. A game history and leaderboard.
+8. Persistent user-specific game sessions in PostgreSQL (my profiles and game_sessions tables with RLS already exist; reuse them).
+9. Input validation, safe rendering, authentication and authorization, Row Level Security, and safe secret handling.
+10. A prompt log, README, SQL migrations, environment example and tests.
+
+Design direction:
+A polished dark arena with neon accents, glowing colored tiles floating in space, responsive layouts, smooth transitions, and a cohesive gaming dashboard.
+
+Before coding:
+* Inspect the existing workspace and its Git status.
+* Produce the architecture, route map, folder structure, component plan and data flow.
+* Design the tile graph, route generation, rule generation (true/false), and round state machine.
+* Explain the raycasting approach and the game-state model.
+* Explain how a GLB character model will be loaded, scaled, animated and given a fallback if loading fails.
+* Map my game stats onto the existing game_sessions columns and propose any extra columns as a new 002 migration.
+* Identify security boundaries, dependencies, testing strategy and deployment risks.
+* Break the work into the instructor's eight prompts.
+
+Do not build the whole app in this stage. Wait for my review before implementing the shell. Do not claim a feature has been tested until it has actually been tested.

@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #2A1033;
+    color: #FFF4DC;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'Righteous', 'Fredoka', cursive, sans-serif;
+    letter-spacing: 0.02em;
+  }
+}
+
+/* 1970s Disco Dance-Floor Subtle Checkerboard Pattern */
+.dancefloor-checkerboard {
+  background-image: 
+    linear-gradient(45deg, rgba(24, 9, 29, 0.25) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(24, 9, 29, 0.25) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(24, 9, 29, 0.25) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(24, 9, 29, 0.25) 75%);
+  background-size: 60px 60px;
+  background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom retro scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #18091D;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #FFC83B;
+  border: 2px solid #18091D;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF3377;
+}
