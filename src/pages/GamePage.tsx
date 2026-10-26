@@ -1,182 +1,208 @@
-import React, { useState } from 'react';
-import { Card } from '../components/common/Card';
-import { Button } from '../components/common/Button';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { DiscoScene } from '../game/scene/DiscoScene';
+import { GameHUD } from '../game/hud/GameHUD';
+import { StartOverlay } from '../game/hud/StartOverlay';
+import { GameOverOverlay } from '../game/hud/GameOverOverlay';
 import { Modal } from '../components/common/Modal';
-import { 
-  Play, 
-  HelpCircle, 
-  Flame, 
-  Megaphone, 
-  Timer, 
-  Target, 
-  Disc3, 
-  Layers 
-} from 'lucide-react';
+import { Button } from '../components/common/Button';
+import { useToast } from '../context/ToastContext';
+
+type GameScreenState = 'start' | 'playing' | 'gameover';
 
 export const GamePage: React.FC = () => {
+  const { addToast } = useToast();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const [screenState, setScreenState] = useState<GameScreenState>('start');
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
+  const [isOverview, setIsOverview] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Active tile state in the enlarged 7x14 arena graph
+  const [currentTileId, setCurrentTileId] = useState<string>('start');
+  const [invalidMoveNotice, setInvalidMoveNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<number | null>(null);
+
+  // Synchronize browser Fullscreen API state (e.g. Esc key pressed)
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  // Fullscreen API toggle on user click with graceful failure handling
+  const handleToggleFullscreen = useCallback(() => {
+    try {
+      if (!document.fullscreenElement) {
+        if (containerRef.current?.requestFullscreen) {
+          containerRef.current.requestFullscreen().catch(() => {
+            // Graceful fallback if iframe or browser blocks request
+          });
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    } catch {
+      // Fail gracefully
+    }
+  }, []);
+
+  // Handles smooth tile hop completion
+  const handleTileChanged = useCallback((newTileId: string) => {
+    setCurrentTileId(newTileId);
+    setInvalidMoveNotice(null);
+  }, []);
+
+  // Handles invalid non-adjacent clicks
+  const handleInvalidMove = useCallback((_tileId: string) => {
+    if (noticeTimer.current) {
+      window.clearTimeout(noticeTimer.current);
+    }
+    setInvalidMoveNotice('Only adjacent tiles can be hopped to!');
+    noticeTimer.current = window.setTimeout(() => {
+      setInvalidMoveNotice(null);
+    }, 1800);
+  }, []);
+
+  // Requirement 4: Placeholder callback when exit portal is reached
+  const handleExitReached = useCallback(() => {
+    console.log('Exit reached! Completed demo run.');
+    addToast('Exit reached! Stage 5 will handle wave completion.', 'success');
+  }, [addToast]);
+
+  // Corner Pause/Exit button: exits fullscreen play and returns to start screen
+  const handlePauseOrExit = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    setScreenState('start');
+  }, []);
+
+  // Placeholder HUD values for Stage 4b
+  const roundNumber = 1;
+  const score = 0;
+  const timerSeconds = 30;
+  const roundsSurvived = 0;
+  const falls = 0;
+  const accuracy = 100;
+  const comboStreak = 0;
+  const announcedRule = 'Mustard tiles are bouncy!';
+
+  const isPlayingFullscreen = screenState === 'playing';
 
   return (
-    <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-6">
-      {/* Game HUD Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 rounded-3xl border-2 border-disco-border bg-disco-surface shadow-retro">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-disco-pink border-2 border-disco-border text-white shadow-retro-xs">
-            <Flame className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-xs font-display font-bold text-disco-cream-muted uppercase">Score</div>
-            <div className="text-xl font-bold font-display text-disco-cream">0</div>
-          </div>
-        </div>
+    <div
+      ref={containerRef}
+      className={
+        isPlayingFullscreen
+          ? 'fixed inset-0 z-50 w-screen h-[100dvh] bg-disco-bg flex flex-col overflow-hidden'
+          : 'flex-1 flex flex-col p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 relative'
+      }
+    >
+      {/* 3D Disco Arena Viewport Container */}
+      <div
+        className={
+          isPlayingFullscreen
+            ? 'relative w-full h-full flex-1 overflow-hidden select-none'
+            : 'relative w-full h-[650px] lg:h-[720px] rounded-3xl border-3 border-disco-border bg-disco-bg shadow-retro-xl overflow-hidden'
+        }
+      >
+        {/* Three.js Interactive 3D Canvas */}
+        <DiscoScene
+          currentTileId={currentTileId}
+          onTileChanged={handleTileChanged}
+          onInvalidMove={handleInvalidMove}
+          onExitReached={handleExitReached}
+          isOverview={isOverview}
+        />
 
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-disco-mustard border-2 border-disco-border text-disco-border shadow-retro-xs">
-            <Layers className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-xs font-display font-bold text-disco-cream-muted uppercase">Wave</div>
-            <div className="text-xl font-bold font-display text-disco-cream">Round 1</div>
-          </div>
-        </div>
+        {/* Regular React HTML HUD Overlay */}
+        <GameHUD
+          roundNumber={roundNumber}
+          score={score}
+          timerSeconds={timerSeconds}
+          roundsSurvived={roundsSurvived}
+          falls={falls}
+          accuracy={accuracy}
+          comboStreak={comboStreak}
+          announcedRule={announcedRule}
+          isOverview={isOverview}
+          onToggleOverview={() => setIsOverview((prev) => !prev)}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleToggleFullscreen}
+          onPauseOrExit={handlePauseOrExit}
+          invalidMoveNotice={invalidMoveNotice}
+          onOpenHelp={() => setIsHowToPlayOpen(true)}
+          onSimulateGameOver={() => setScreenState('gameover')}
+        />
 
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-disco-teal border-2 border-disco-border text-white shadow-retro-xs">
-            <Target className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-xs font-display font-bold text-disco-cream-muted uppercase">Trust Rate</div>
-            <div className="text-xl font-bold font-display text-disco-teal">100%</div>
-          </div>
-        </div>
+        {/* Start Screen Overlay */}
+        {screenState === 'start' && (
+          <StartOverlay
+            onStart={() => setScreenState('playing')}
+            onOpenRules={() => setIsHowToPlayOpen(true)}
+          />
+        )}
 
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-disco-orange border-2 border-disco-border text-white shadow-retro-xs">
-            <Timer className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-xs font-display font-bold text-disco-cream-muted uppercase">Dance Clock</div>
-            <div className="text-xl font-bold font-display text-disco-cream">00:30</div>
-          </div>
-        </div>
-
-        <div className="col-span-2 sm:col-span-1 flex items-center justify-end gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsHowToPlayOpen(true)}
-            leftIcon={<HelpCircle className="w-4 h-4" />}
-          >
-            Rules
-          </Button>
-        </div>
+        {/* Game Over Presentation Overlay */}
+        {screenState === 'gameover' && (
+          <GameOverOverlay
+            score={score}
+            roundsSurvived={roundsSurvived}
+            falls={falls}
+            accuracy={accuracy}
+            onPlayAgain={() => {
+              setCurrentTileId('start');
+              setScreenState('playing');
+            }}
+          />
+        )}
       </div>
 
-      {/* Rule Broadcast Banner */}
-      <div className="relative rounded-3xl border-2 border-disco-border bg-disco-surface p-5 sm:p-6 shadow-retro border-l-8 border-l-disco-mustard flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-disco-mustard border-2 border-disco-border text-disco-border flex items-center justify-center shrink-0 shadow-retro-xs">
-            <Megaphone className="w-7 h-7" />
-          </div>
-          <div>
-            <span className="text-xs font-bold font-display tracking-wider text-disco-mustard uppercase">
-              Loudspeaker Announcement
-            </span>
-            <h2 className="text-xl sm:text-2xl font-bold font-display text-disco-cream mt-0.5">
-              &quot;Mustard tiles are safe to step on.&quot;
-            </h2>
-            <p className="text-xs text-disco-cream-muted mt-0.5">
-              50% chance: Is the announcer telling the truth, or playing a sneaky trick?
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs font-display font-bold px-4 py-2 rounded-2xl border-2 border-disco-border bg-disco-elevated text-disco-cream shadow-retro-xs">
-            Make Your Choice
-          </span>
-        </div>
-      </div>
-
-      {/* 3D Dance Floor Viewport Shell */}
-      <Card className="flex-1 min-h-[480px] p-0 flex flex-col items-center justify-center border-2 border-disco-border shadow-retro-lg relative overflow-hidden bg-disco-bg">
-        {/* Dance floor checkerboard accent */}
-        <div className="absolute inset-0 dancefloor-checkerboard opacity-25 pointer-events-none" />
-        
-        {/* Centered Staging Indicator */}
-        <div className="relative z-10 flex flex-col items-center text-center p-8 max-w-lg">
-          <div className="w-20 h-20 rounded-3xl bg-disco-mustard border-2 border-disco-border flex items-center justify-center shadow-retro mb-6">
-            <Disc3 className="w-10 h-10 text-disco-border animate-disco-spin" />
-          </div>
-
-          <h3 className="text-2xl sm:text-3xl font-bold font-display text-disco-cream">
-            Dance Floor Viewport Ready
-          </h3>
-
-          <p className="text-sm text-disco-cream-muted mt-3 leading-relaxed">
-            The Three.js 3D dance floor, raycasting tile controls, and character model will be mounted right here in <strong>Stage 4</strong>.
-          </p>
-
-          <div className="mt-8 flex flex-wrap gap-4 justify-center">
-            <Button
-              variant="secondary"
-              size="lg"
-              leftIcon={<Play className="w-5 h-5" />}
-              onClick={() => setIsHowToPlayOpen(true)}
-            >
-              Check Dance Rules
-            </Button>
-          </div>
-        </div>
-
-        {/* Viewport status footer */}
-        <div className="absolute bottom-4 left-6 right-6 flex items-center justify-between text-xs text-disco-cream-muted border-t-2 border-disco-border/30 pt-3">
-          <span>Camera: Orbital Overhead</span>
-          <span>Pointer: 3D Raycasting</span>
-          <span>Engine: Three.js + R3F</span>
-        </div>
-      </Card>
-
-      {/* Dance Rules Modal */}
+      {/* Rules & Guide Modal */}
       <Modal
         isOpen={isHowToPlayOpen}
         onClose={() => setIsHowToPlayOpen(false)}
         title="Dance Floor Guide"
-        description="Learn the tricks of the disco floor"
+        description="Master the mechanics of FloorIsALiar"
         size="lg"
       >
         <div className="space-y-4 text-sm text-disco-cream">
           <div className="p-4 rounded-2xl border-2 border-disco-border bg-disco-elevated shadow-retro-xs">
-            <h4 className="font-bold font-display text-disco-teal text-base mb-1">
-              Click-to-Move Raycasting
+            <h4 className="font-bold font-display text-disco-mustard text-base mb-1">
+              Move Queuing (Hop Chaining)
             </h4>
             <p className="text-xs text-disco-cream-muted leading-relaxed">
-              Hover over adjacent floor tiles to inspect them. Click a neighboring tile to take your step. Tiles too far away cannot be reached in a single hop.
+              Click adjacent tiles to hop! You can queue up to 2 moves ahead while mid-air, allowing hops to chain smoothly without stopping.
             </p>
           </div>
 
           <div className="p-4 rounded-2xl border-2 border-disco-border bg-disco-elevated shadow-retro-xs">
-            <h4 className="font-bold font-display text-disco-mustard text-base mb-1">
-              Truth or Lie
+            <h4 className="font-bold font-display text-disco-teal text-base mb-1">
+              Three Distinct Routes
             </h4>
             <p className="text-xs text-disco-cream-muted leading-relaxed">
-              Each wave announces a rule about one tile color. If the loudspeaker says a color is safe, it might bounce, slide, or crumble instead. Decide whether to trust it or take a detour.
+              Explore the 7x14 arena: choose the <strong>Right branch</strong> (fastest & high risk), the <strong>Center branch</strong> (balanced & winding), or the <strong>Left flank</strong> (longest & safest).
             </p>
           </div>
 
           <div className="p-4 rounded-2xl border-2 border-disco-border bg-disco-elevated shadow-retro-xs">
             <h4 className="font-bold font-display text-disco-pink text-base mb-1">
-              Saved High Scores
+              Fullscreen & Camera Controls
             </h4>
             <p className="text-xs text-disco-cream-muted leading-relaxed">
-              At the end of your run, your score, accuracy, and fastest dance moves are safely saved to PostgreSQL with Row Level Security.
+              Use the corner buttons to switch to full-screen mode, toggle the high-angle Overview camera, or pause and return to the main floor anytime.
             </p>
           </div>
         </div>
 
         <div className="mt-6 flex justify-end">
           <Button variant="primary" onClick={() => setIsHowToPlayOpen(false)}>
-            Ready to Dance
+            Close Guide
           </Button>
         </div>
       </Modal>

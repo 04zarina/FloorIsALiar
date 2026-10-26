@@ -1,0 +1,27 @@
+Implement Stage 4: Real raycasting and tile interaction in FloorIsALiar, with click-to-move.
+
+Use the actual Three.js raycasting system through React Three Fiber pointer events (or an explicitly implemented THREE.Raycaster). The interactive objects are the arena TILES.
+
+Tile graph and movement (fixes a current bug):
+* The dev-move button currently skips tiles and never takes the right-hand branch. Remove it.
+* Define the arena as a tile graph in plain TypeScript (no Three.js imports): each tile has a unique id, grid position, color, and a list of adjacent tile ids (up, down, left, right). Include the start and exit tiles. The demo layout must have at least two distinct routes between start and exit, including a branch to the right.
+* Add pure functions such as getNeighbors(id), isAdjacent(a, b) and findPath(a, b), kept separate from rendering.
+* Click-to-move: the player can move only to a tile adjacent to the one they stand on, one tile per click. Clicking a non-adjacent tile does nothing except show brief "too far" feedback. Animate the hop smoothly. Ignore clicks while a hop is in progress.
+* The follow camera keeps following the player.
+
+Raycasting requirements:
+* Detect when the pointer enters and leaves a tile, highlight it on hover, and restore its appearance on exit. Hovering a reachable (adjacent) tile and an unreachable tile should look different (for example a lighter rim vs. a muted one).
+* Detect clicks on actual 3D tile meshes. Distinguish tile hits from clicks on empty space (the backdrop and props must not register as tiles).
+* Ensure only the nearest intended tile receives the event (use stopPropagation, and make sure props and decorative meshes don't intercept the ray).
+* Provide visual feedback on a valid click: a brief squash-and-pop animation on the tile and a few confetti particles. Show a short "nope" shake on invalid clicks.
+* Handle pointer events so HUD buttons and overlays never trigger game interactions (pointer-events handling on the overlay, and no click-through).
+* Support mouse and touch. On touch there is no hover, so a tap should both select and move. Prevent duplicate registration from bubbling or repeated handlers, including double-tap.
+* Keep raycasting and interaction logic separate from any score calculation. Do not add scoring, rules, true/false rolls or the full game-state system. Those belong to Stage 5.
+
+Tests and documentation:
+* Add unit tests (Vitest) for the graph functions: adjacency, findPath, the two distinct routes, and invalid moves.
+* Add a test or reproducible demonstration of hit detection using a real THREE.Raycaster against tile meshes in a headless scene: a ray that hits a tile, a ray that misses everything, and a ray where a prop is in front of a tile.
+* Write docs/raycasting.md explaining the flow: screen-space pointer coordinates, normalized device coordinates, camera projection, ray intersection, selected mesh, and the resulting event.
+* Do not fake raycasting by checking hardcoded screen coordinates.
+
+Before coding, list the files you will create or change. Afterwards run npm test, npm run build and npm run dev, fix errors, and report exactly what you ran. Do not claim anything is tested unless you ran it.

@@ -1,0 +1,16 @@
+Stage 4c: player character and exit portal. No scoring, rule rolls or game-state changes.
+
+1. Character: replace the stand-in capsule with public/models/player.glb.
+* Load with useGLTF inside Suspense (small loading indicator). If loading fails, fall back to the capsule via an error boundary.
+* Auto-normalize: compute the bounding box, scale so height is ~1 tile-width, center it on x/z, and put its feet on the tile surface. Log the model's animation names, bounds and any problems.
+* Animations: map idle/walk/run/jump/fall if present, crossfading between them (idle when standing, walk or jump during a hop). If none exist, animate in code: squash before the hop, stretch in the air, land bounce.
+* Face the travel direction with smooth rotation. Enable cast shadows. Do not modify the GLB.
+* Keep the player component swappable and separate from movement and raycasting logic.
+
+2. Exit portal: make the arch a glowing doorway.
+* Fill the arch opening with a plane using a custom shader or animated texture: a swirling spiral of teal, hot pink and mustard, brighter at the center, with a slow rotation and gentle pulse. Additive blending, no bloom post-processing.
+* Add a soft point light inside the portal, a thin pulsing ring on the floor, and a few Sparkles rising through the doorway.
+* On reaching the exit, the player spins, shrinks and is sucked into the portal (~0.8s), then fires the existing placeholder callback.
+* Use shared geometry and materials, update shader uniforms in useFrame without allocating objects, and dispose of everything on unmount. Respect prefers-reduced-motion by slowing the swirl.
+
+List files you'll change first. Then run npm test, npm run build, npm run dev, fix errors, and report only what you ran.

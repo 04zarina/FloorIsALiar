@@ -1,0 +1,21 @@
+Implement Stage 3: Build the actual FloorIsALiar 3D scene.
+
+Use Three.js through @react-three/fiber and @react-three/drei. Use the disco theme tokens already in the design system (plum, cream, mustard, hot pink, tangerine, teal). Do not reintroduce neon glow styling.
+
+Requirements:
+
+* Create a real interactive 3D scene with a camera, lighting, a floating arena of colored tiles, and a surrounding environment (for example a dark disco-hall backdrop with a slowly rotating mirror ball and soft colored spotlights).
+* The arena is a grid of tiles floating in space, with a clearly marked ENTRY tile and EXIT tile placed at opposite ends. Lay out the tiles so there are several visibly different routes between entry and exit (a shorter route and a longer route). For this stage the layout can be a fixed demo layout; procedural generation comes later.
+* Tile colors come from the theme tile colors (for example blue, red, green, yellow, purple, orange). Use appropriate materials, shadows where practical, and smooth animations (gentle floating bob per tile, staggered so they don't move in sync). Use soft lighting for the disco feel rather than neon emissive glow.
+* Place a temporary stand-in player (a simple capsule or low-poly mesh) on the entry tile. The real GLB model will be added in a later stage; structure the code so it can be swapped in without changing the scene.
+* Make the scene responsive to browser resizing and use a fixed isometric-style camera angle that shows the whole arena and works well for mouse and touchscreen. Use a restrained OrbitControls, or none, so the player cannot lose the arena.
+* Include a clear game HUD (regular React/HTML overlay, not 3D) showing: round number, announced rule banner (placeholder text for now, e.g. "Blue tiles are bouncy"), timer, score, rounds survived, falls, trust accuracy and combo streak. Use placeholder values only; do not fabricate saved stats.
+* Add a start screen with a Play button and a short "how to play" blurb about trusting or ignoring the announced rule.
+* Add a placeholder game-over presentation (final score, rounds survived, falls, accuracy, Play Again) that can be connected to the game-state system in Stage 5.
+* Optimize geometry and rendering: use instanced meshes or shared geometries and materials, cap devicePixelRatio (for example [1, 2]), and avoid creating objects inside the render loop.
+* Handle resizing, component unmounting and resource cleanup properly (dispose geometries, materials and textures; no leaked listeners).
+* Keep the 3D rendering components in their own folder (for example src/game/scene/), separate from the regular React UI components. The Game page should be protected (logged-in users only) as before.
+
+Do not implement raycasting, hover, click-to-move, rules logic, true/false rule rolls or scoring yet. Those are Stage 4 and Stage 5. Do not use a static image as a substitute for the 3D environment.
+
+Before coding, list the files you will create or change. After implementing, run npm run build and npm run dev, fix any errors, and report what you actually ran. Do not claim anything is tested unless you ran it.
