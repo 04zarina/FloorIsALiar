@@ -1,63 +1,73 @@
-import type { TileColorType } from '../scene/materials';
+import type { TileType } from '../scene/types';
 
-/** Real hidden tile effects */
+export type TileColorType = TileType;
+
 export type TileEffect = 'safe' | 'bounce' | 'slide' | 'crumble' | 'speedBoost';
+export type EffectMap = Record<TileType, TileEffect>;
 
-/** Per-color real effects (hidden from player unless rule is true) */
-export const TILE_EFFECTS: Record<TileColorType, TileEffect> = {
-  safe:    'safe',
-  bounce:  'bounce',
-  slide:   'slide',
-  crumble: 'crumble',
-  mystery: 'safe',      // mystery tiles are secretly safe
-  entry:   'safe',
-  exit:    'safe',
+/** Every color is safe by default. Each round only the announced color gets a real effect. */
+export const TILE_EFFECTS: EffectMap = {
+  safe: 'safe', bounce: 'safe', slide: 'safe', crumble: 'safe',
+  mystery: 'safe', entry: 'safe', exit: 'safe',
 };
 
-/** Human-readable rule descriptions */
+export const TILE_COLOR_NAMES: Record<TileType, string> = {
+  safe: 'Teal', bounce: 'Mustard', slide: 'Orange', crumble: 'Pink',
+  mystery: 'Purple', entry: 'Start', exit: 'Exit',
+};
+
 export const EFFECT_DESCRIPTIONS: Record<TileEffect, string> = {
-  safe:       'are completely safe',
-  bounce:     'are bouncy (launch you forward)',
-  slide:      'are slippery (slide 2 tiles)',
-  crumble:    'crumble after you step on them',
+  safe: 'are safe to stand on',
+  bounce: 'are bouncy',
+  slide: 'are slippery',
+  crumble: 'crumble when you step on them',
   speedBoost: 'give you a speed boost',
 };
 
 export type AnnouncedRule = {
-  color: TileColorType;
+  color: TileType;
   claimedEffect: TileEffect;
-  isTrue: boolean;          // whether the claimed effect matches reality
-  text: string;             // human-readable announcement
+  isTrue: boolean;
+  text: string;
+  /** The REAL effect of every color this round (hidden from the player). */
+  effectMap: EffectMap;
 };
 
-const ANNOUNCEABLE: TileColorType[] = ['safe', 'bounce', 'slide', 'crumble', 'mystery'];
+export const RULE_COLORS: TileType[] = ['safe', 'bounce', 'slide', 'crumble', 'mystery'];
+const HAZARDS: TileEffect[] = ['bounce', 'slide', 'crumble'];
+const CLAIMABLE: TileEffect[] = ['safe', 'bounce', 'slide', 'crumble'];
 
-/**
- * Generates a rule announcement for the round using a seeded RNG.
- * @param rng  next() returns [0, 1)
- */
 export function generateRule(rng: () => number): AnnouncedRule {
-  const color = ANNOUNCEABLE[Math.floor(rng() * ANNOUNCEABLE.length)] as TileColorType;
-  const realEffect = TILE_EFFECTS[color];
+  const color = RULE_COLORS[Math.floor(rng() * RULE_COLORS.length)];
 
-  // 60% chance the announced rule is true
-  const isTrue = rng() < 0.60;
+  // The announced color's real effect: mostly a hazard, sometimes truly safe
+  const real: TileEffect =
+    rng() < 0.8 ? HAZARDS[Math.floor(rng() * HAZARDS.length)] : 'safe';
 
-  let claimedEffect: TileEffect;
-  if (isTrue) {
-    claimedEffect = realEffect;
-  } else {
-    // Pick a random different effect
-    const others: TileEffect[] = (['safe', 'bounce', 'slide', 'crumble', 'speedBoost'] as TileEffect[])
-      .filter(e => e !== realEffect);
+  const effectMap: EffectMap = { ...TILE_EFFECTS };
+  effectMap[color] = real;
+
+  const isTrue = rng() < 0.6;
+  let claimedEffect: TileEffect = real;
+  if (!isTrue) {
+    const others = CLAIMABLE.filter((e) => e !== real);
     claimedEffect = others[Math.floor(rng() * others.length)];
   }
 
-  const colorName = color.charAt(0).toUpperCase() + color.slice(1);
   return {
-    color,
-    claimedEffect,
-    isTrue,
-    text: `${colorName} tiles ${EFFECT_DESCRIPTIONS[claimedEffect]}!`,
+    color, claimedEffect, isTrue, effectMap,
+    text: `${TILE_COLOR_NAMES[color]} tiles ${EFFECT_DESCRIPTIONS[claimedEffect]}!`,
   };
+}
+
+/**
+ * Trust decision: "trusted" = acted as the rule implies.
+ *  - rule claims SAFE -> trusted if you stepped on that color
+ *  - rule claims a hazard -> trusted if you avoided that color
+ * The decision is correct when trusting matched whether the rule was true.
+ */
+export function evaluateTrust(rule: AnnouncedRule, steppedTypes: ReadonlySet<TileType>): boolean {
+  const stepped = steppedTypes.has(rule.color);
+  const trusted = rule.claimedEffect === 'safe' ? stepped : !stepped;
+  return trusted === rule.isTrue;
 }

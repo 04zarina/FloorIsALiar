@@ -7,7 +7,8 @@ import { getPrefersReducedMotion } from './PortalShader';
 export interface StandInPlayerProps {
   currentPos: [number, number, number];
   targetPos: [number, number, number] | null;
-  isExiting?: boolean;
+  isExiting?: boolean;       // used for falling
+  isCelebrating?: boolean;   // win dance
   exitPortalPos?: [number, number, number];
   onHopComplete: () => void;
   onExitSequenceComplete?: () => void;
@@ -18,6 +19,7 @@ export const StandInPlayer: React.FC<StandInPlayerProps> = ({
   currentPos,
   targetPos,
   isExiting = false,
+  isCelebrating = false,
   exitPortalPos = [0, 1.35, 15.4],
   onHopComplete,
   onExitSequenceComplete,
@@ -26,38 +28,37 @@ export const StandInPlayer: React.FC<StandInPlayerProps> = ({
   const groupRef = useRef<THREE.Group>(null);
   const reducedMotion = useMemo(() => getPrefersReducedMotion(), []);
 
-  // Hop animation states: fast, snappy ~0.24s hop
   const isHopping = useRef(false);
   const hopStartTime = useRef(0);
   const startPos = useRef<[number, number, number]>([...currentPos]);
   const endPos = useRef<[number, number, number]>([...currentPos]);
   const HOP_DURATION = 0.24;
 
-  // Exit portal sucking sequence states: ~0.8s spin, shrink, pull
   const exitStartTime = useRef(0);
   const exitStartPos = useRef<[number, number, number]>([...currentPos]);
   const exitCompleted = useRef(false);
   const EXIT_DURATION = 0.8;
 
-  // React state mirrors for child presentation components
+  const celebStart = useRef(0);
+
   const [hopState, setHopState] = useState<{ isHopping: boolean; progress: number }>({
     isHopping: false,
     progress: 0,
   });
 
-  // Initial mount log for position verification
   useEffect(() => {
-    console.log('Player Character Mounted at World Position:', currentPos);
     onPositionUpdate(currentPos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset character completely when playing again (currentPos resets or isExiting turns false)
+  // Reset character when a round restarts or a celebration/fall ends
   useEffect(() => {
     if (!isExiting) {
       exitCompleted.current = false;
       exitStartTime.current = 0;
       isHopping.current = false;
       hopStartTime.current = 0;
+      celebStart.current = 0;
       if (groupRef.current) {
         groupRef.current.scale.set(1, 1, 1);
         groupRef.current.rotation.set(0, 0, 0);
@@ -68,9 +69,8 @@ export const StandInPlayer: React.FC<StandInPlayerProps> = ({
       exitStartTime.current = 0;
       exitStartPos.current = [...currentPos];
     }
-  }, [isExiting, currentPos]);
+  }, [isExiting, isCelebrating, currentPos]);
 
-  // When current position changes (e.g. restart to start pad), restore scale and orientation immediately
   useEffect(() => {
     exitCompleted.current = false;
     exitStartTime.current = 0;
@@ -85,10 +85,10 @@ export const StandInPlayer: React.FC<StandInPlayerProps> = ({
     onPositionUpdate(currentPos);
   }, [currentPos, onPositionUpdate]);
 
-  // Trigger hop when targetPos changes
   useEffect(() => {
     if (
       !isExiting &&
+      !isCelebrating &&
       targetPos &&
       (targetPos[0] !== currentPos[0] || targetPos[2] !== currentPos[2])
     ) {
@@ -98,111 +98,102 @@ export const StandInPlayer: React.FC<StandInPlayerProps> = ({
       endPos.current = [...targetPos];
       setHopState({ isHopping: true, progress: 0 });
     }
-  }, [targetPos, currentPos, isExiting]);
+  }, [targetPos, currentPos, isExiting, isCelebrating]);
 
   useFrame(({ clock }, delta) => {
-    if (!groupRef.current) return;
+    const g = groupRef.current;
+    if (!g) return;
 
-    // 1. Exit Portal Sucking Sequence: spin, shrink, and get pulled into doorway over ~0.8s
+    // 1. Fall / exit sequence: spin, shrink, get pulled to a point
     if (isExiting) {
       if (exitCompleted.current) return;
 
       if (exitStartTime.current === 0) {
         exitStartTime.current = clock.getElapsedTime();
-        exitStartPos.current = [
-          groupRef.current.position.x,
-          groupRef.current.position.y,
-          groupRef.current.position.z,
-        ];
+        exitStartPos.current = [g.position.x, g.position.y, g.position.z];
       }
 
       const elapsed = clock.getElapsedTime() - exitStartTime.current;
       const progress = Math.min(1.0, elapsed / EXIT_DURATION);
-
-      // Accelerating ease-in pull toward the portal center
-      const pullFactor = Math.pow(progress, 1.8);
+      const pull = Math.pow(progress, 1.8);
       const [sx, sy, sz] = exitStartPos.current;
       const [tx, ty, tz] = exitPortalPos;
 
-      const curX = THREE.MathUtils.lerp(sx, tx, pullFactor);
-      const curY = THREE.MathUtils.lerp(sy, ty, pullFactor);
-      const curZ = THREE.MathUtils.lerp(sz, tz, pullFactor);
+      const curX = THREE.MathUtils.lerp(sx, tx, pull);
+      const curY = THREE.MathUtils.lerp(sy, ty, pull);
+      const curZ = THREE.MathUtils.lerp(sz, tz, pull);
+      g.position.set(curX, curY, curZ);
 
-      groupRef.current.position.set(curX, curY, curZ);
-
-      // Sucking spin: rapid rotation into vortex (or gentle roll if reduced motion)
-      const spinSpeed = reducedMotion ? 3.0 : 22.0;
-      groupRef.current.rotation.y += spinSpeed * delta;
-
-      // Sucking shrink: scale drops smoothly from 1.0 to 0
-      const currentScale = Math.max(0.0001, 1.0 - Math.pow(progress, 1.4));
-      groupRef.current.scale.set(currentScale, currentScale, currentScale);
-
-      // Camera trailing
+      g.rotation.y += (reducedMotion ? 3.0 : 22.0) * delta;
+      const s = Math.max(0.0001, 1.0 - Math.pow(progress, 1.4));
+      g.scale.set(s, s, s);
       onPositionUpdate([curX, curY, curZ]);
 
       if (progress >= 1.0) {
         exitCompleted.current = true;
-        groupRef.current.scale.set(0, 0, 0);
+        g.scale.set(0, 0, 0);
         onExitSequenceComplete?.();
       }
       return;
     }
 
-    // 2. Click-to-Move Hop Animation (~0.24s with small parabolic arc)
+    // 2. Win dance: spin to face the camera, then jump and sway
+    if (isCelebrating) {
+      if (celebStart.current === 0) celebStart.current = clock.getElapsedTime();
+      const t = clock.getElapsedTime() - celebStart.current;
+
+      const spinT = Math.min(1, t / 0.7);
+      const ease = 1 - Math.pow(1 - spinT, 3);
+      // 1.5 turns ends facing the camera (the camera looks toward +z)
+      const sway = spinT >= 1 && !reducedMotion ? Math.sin((t - 0.7) * 9) * 0.3 : 0;
+      g.rotation.y = Math.PI * 3 * ease + sway;
+
+      const jump = Math.abs(Math.sin(t * 6.5)) * (reducedMotion ? 0.3 : 0.95);
+      g.position.set(currentPos[0], currentPos[1] + jump, currentPos[2]);
+
+      g.rotation.z = reducedMotion ? 0 : Math.sin(t * 9) * 0.18;
+      const squash = 1 + (jump / 0.95 - 0.5) * 0.12;
+      g.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
+      return;
+    }
+
+    // 3. Click/key hop (~0.24s with a small arc)
     if (isHopping.current) {
-      if (hopStartTime.current === 0) {
-        hopStartTime.current = clock.getElapsedTime();
-      }
+      if (hopStartTime.current === 0) hopStartTime.current = clock.getElapsedTime();
 
       const elapsed = clock.getElapsedTime() - hopStartTime.current;
       const progress = Math.min(1.0, elapsed / HOP_DURATION);
-
       setHopState({ isHopping: true, progress });
 
-      // Smooth step easing curve
       const easeT = THREE.MathUtils.smoothstep(progress, 0, 1);
-
       const [x0, y0, z0] = startPos.current;
       const [x1, y1, z1] = endPos.current;
 
-      const currentX = THREE.MathUtils.lerp(x0, x1, easeT);
-      const currentZ = THREE.MathUtils.lerp(z0, z1, easeT);
-      // Small, snappy parabolic jump arc peaking at ~0.85 units
-      const jumpY =
-        THREE.MathUtils.lerp(y0, y1, easeT) + Math.sin(progress * Math.PI) * 0.85;
+      const cx = THREE.MathUtils.lerp(x0, x1, easeT);
+      const cz = THREE.MathUtils.lerp(z0, z1, easeT);
+      const cy = THREE.MathUtils.lerp(y0, y1, easeT) + Math.sin(progress * Math.PI) * 0.85;
+      g.position.set(cx, cy, cz);
 
-      groupRef.current.position.set(currentX, jumpY, currentZ);
-
-      // Face travel direction with smooth rotation
       const dx = x1 - x0;
       const dz = z1 - z0;
       if (Math.abs(dx) > 0.01 || Math.abs(dz) > 0.01) {
-        const targetAngle = Math.atan2(dx, dz);
-        groupRef.current.rotation.y = THREE.MathUtils.damp(
-          groupRef.current.rotation.y,
-          targetAngle,
-          15,
-          delta
-        );
+        g.rotation.y = THREE.MathUtils.damp(g.rotation.y, Math.atan2(dx, dz), 15, delta);
       }
 
-      // Smooth camera trailing during active hops
-      onPositionUpdate([currentX, jumpY, currentZ]);
+      onPositionUpdate([cx, cy, cz]);
 
       if (progress >= 1.0) {
         isHopping.current = false;
         hopStartTime.current = 0;
         setHopState({ isHopping: false, progress: 0 });
-        groupRef.current.position.set(x1, y1, z1);
+        g.position.set(x1, y1, z1);
         onPositionUpdate([x1, y1, z1]);
         onHopComplete();
       }
     } else {
-      // 3. Stationary Dancing Bob (dancer mesh bobs gently, ground anchor remains stable)
+      // 4. Idle bob
       const t = clock.getElapsedTime();
-      const idleY = currentPos[1] + Math.sin(t * 3.0) * 0.04;
-      groupRef.current.position.set(currentPos[0], idleY, currentPos[2]);
+      g.position.set(currentPos[0], currentPos[1] + Math.sin(t * 3.0) * 0.04, currentPos[2]);
     }
   });
 

@@ -1,20 +1,20 @@
 /**
  * FloorIsALiar game state machine.
- * States: idle -> ready -> playing -> roundWon | roundFailed -> (next round | finished)
- * Pure data/transitions — no React, no Three.js.
+ * idle -> announcing -> playing -> roundWon | roundFailed -> (next level / retry | finished)
+ * Pure data/transitions: no React, no Three.js.
  */
 
 import { createRng } from './seededRng';
-import { generateRule, type AnnouncedRule } from './rules';
+import { generateRule, TILE_EFFECTS, type AnnouncedRule, type EffectMap } from './rules';
 import { computeRoundScore, computeAccuracy, nextStreak } from './scoring';
 
 export type GamePhase =
-  | 'idle'       // before first play
-  | 'announcing' // rule is being shown (~2.5s)
-  | 'playing'    // player is moving
-  | 'roundWon'   // reached exit
-  | 'roundFailed'// fell or timer expired
-  | 'finished';  // no lives left or last level complete
+  | 'idle'
+  | 'announcing'
+  | 'playing'
+  | 'roundWon'
+  | 'roundFailed'
+  | 'finished';
 
 export const LIVES_PER_RUN = 3;
 export const ROUND_TIMER_SECONDS = 30;
@@ -30,21 +30,22 @@ export interface RoundStats {
 export interface GameState {
   phase: GamePhase;
   lives: number;
-  roundNumber: number;
-  levelIndex: number;        // 0-based
+  roundNumber: number;       // attempts so far (retries count)
+  levelIndex: number;        // 0-based current level
   totalLevels: number;
   score: number;
   roundsSurvived: number;
   falls: number;
   comboStreak: number;
-  trustCorrect: number;      // rounds where player's choice paid off
-  trustTotal: number;        // rounds trust could be evaluated
-  decisionTimesMs: number[]; // one per completed round
+  trustCorrect: number;
+  trustTotal: number;
+  decisionTimesMs: number[];
   currentRule: AnnouncedRule | null;
+  effectMap: EffectMap;      // real effects this round
   timerSecondsLeft: number;
-  /** Timestamp (Date.now()) when rule was announced — for decision time measurement */
+  /** Date.now() when the rule was announced: start of decision-time measurement */
   ruleAnnouncedAt: number;
-  /** Timestamp (Date.now()) when player made first move — set once per round */
+  /** Date.now() when the player first moved this round (0 = not yet) */
   firstMoveAt: number;
   seed: number;
 }
@@ -64,6 +65,7 @@ export function createInitialState(totalLevels: number, seed = Date.now()): Game
     trustTotal: 0,
     decisionTimesMs: [],
     currentRule: null,
+    effectMap: { ...TILE_EFFECTS },
     timerSecondsLeft: ROUND_TIMER_SECONDS,
     ruleAnnouncedAt: 0,
     firstMoveAt: 0,
@@ -71,40 +73,43 @@ export function createInitialState(totalLevels: number, seed = Date.now()): Game
   };
 }
 
-// --- Transitions ---
+/** Level the next round will use: advances only after a win. */
+export function getNextLevelIndex(state: GameState): number {
+  return state.phase === 'roundWon' ? state.levelIndex + 1 : state.levelIndex;
+}
 
-/** Begin the announcing phase for a new round. Returns new state. */
-export function startRound(state: GameState, now = Date.now()): GameState {
+/** Begin the announcing phase for a new round. */
+export function startRound(
+  state: GameState,
+  now = Date.now(),
+  timerSeconds = ROUND_TIMER_SECONDS
+): GameState {
   const rng = createRng(state.seed + state.roundNumber);
   const rule = generateRule(rng);
   return {
     ...state,
     phase: 'announcing',
     roundNumber: state.roundNumber + 1,
+    levelIndex: getNextLevelIndex(state),
     currentRule: rule,
-    timerSecondsLeft: ROUND_TIMER_SECONDS,
+    effectMap: rule.effectMap,
+    timerSecondsLeft: timerSeconds,
     ruleAnnouncedAt: now,
     firstMoveAt: 0,
   };
 }
 
-/** Player moved for the first time this round — record decision time. */
+/** Player moved for the first time this round. */
 export function recordFirstMove(state: GameState, now = Date.now()): GameState {
-  if (state.firstMoveAt !== 0) return state; // already recorded
-  return {
-    ...state,
-    phase: 'playing',
-    firstMoveAt: now,
-  };
+  if (state.firstMoveAt !== 0) return state;
+  return { ...state, phase: 'playing', firstMoveAt: now };
 }
 
-/** Tick the round timer. Returns updated state; phase becomes 'roundFailed' at 0. */
+/** Tick the round timer. Phase becomes failed (or finished) at 0. */
 export function tickTimer(state: GameState, deltaSeconds: number): GameState {
   if (state.phase !== 'announcing' && state.phase !== 'playing') return state;
   const next = Math.max(0, state.timerSecondsLeft - deltaSeconds);
-  if (next <= 0) {
-    return applyRoundFailed(state);
-  }
+  if (next <= 0) return applyRoundFailed(state);
   return { ...state, timerSecondsLeft: next };
 }
 
@@ -114,54 +119,55 @@ export function applyRoundWon(
   stepsTaken: number,
   maxSteps: number,
   trustCorrect: boolean,
-  now = Date.now()
 ): GameState {
   if (state.phase === 'finished') return state;
 
-  const decisionTimeMs = state.firstMoveAt > 0 ? now - state.firstMoveAt : 0;
-  const newStreak = nextStreak(state.comboStreak, true);
-  const roundScore = computeRoundScore(stepsTaken, maxSteps, decisionTimeMs, state.comboStreak, trustCorrect);
-  const newTrustTotal = state.trustTotal + 1;
-  const newTrustCorrect = state.trustCorrect + (trustCorrect ? 1 : 0);
+  // Decision time = rule announcement -> first move.
+  const decisionTimeMs =
+    state.firstMoveAt > 0 && state.ruleAnnouncedAt > 0
+      ? Math.max(0, state.firstMoveAt - state.ruleAnnouncedAt)
+      : 0;
 
-  const levelComplete = state.roundNumber >= state.totalLevels;
-  const phase: GamePhase = levelComplete ? 'finished' : 'roundWon';
+  const roundScore = computeRoundScore(
+    stepsTaken, maxSteps, decisionTimeMs, state.comboStreak, trustCorrect
+  );
+
+  const lastLevel = state.levelIndex >= state.totalLevels - 1;
 
   return {
     ...state,
-    phase,
+    phase: lastLevel ? 'finished' : 'roundWon',
     score: state.score + roundScore,
     roundsSurvived: state.roundsSurvived + 1,
-    comboStreak: newStreak,
-    trustCorrect: newTrustCorrect,
-    trustTotal: newTrustTotal,
+    comboStreak: nextStreak(state.comboStreak, true),
+    trustCorrect: state.trustCorrect + (trustCorrect ? 1 : 0),
+    trustTotal: state.trustTotal + 1,
     decisionTimesMs: [...state.decisionTimesMs, decisionTimeMs],
   };
 }
 
-/** Player fell or timer expired. */
-export function applyRoundFailed(state: GameState): GameState {
+/** Player fell or timer expired. Pass trustCorrect to also score the trust decision. */
+export function applyRoundFailed(state: GameState, trustCorrect?: boolean): GameState {
   if (state.phase === 'finished') return state;
 
   const newLives = state.lives - 1;
-  const phase: GamePhase = newLives <= 0 ? 'finished' : 'roundFailed';
+  const evaluated = trustCorrect !== undefined;
 
   return {
     ...state,
-    phase,
+    phase: newLives <= 0 ? 'finished' : 'roundFailed',
     lives: newLives,
     falls: state.falls + 1,
     comboStreak: 0,
     timerSecondsLeft: 0,
+    trustCorrect: state.trustCorrect + (evaluated && trustCorrect ? 1 : 0),
+    trustTotal: state.trustTotal + (evaluated ? 1 : 0),
   };
 }
 
-/** Full restart (new game). */
 export function restartGame(totalLevels: number, seed = Date.now()): GameState {
   return createInitialState(totalLevels, seed);
 }
-
-// --- Derived getters ---
 
 export function getAccuracy(state: GameState): number {
   return computeAccuracy(state.trustCorrect, state.trustTotal);
@@ -169,5 +175,7 @@ export function getAccuracy(state: GameState): number {
 
 export function getAverageDecisionTime(state: GameState): number {
   if (state.decisionTimesMs.length === 0) return 0;
-  return Math.round(state.decisionTimesMs.reduce((a, b) => a + b, 0) / state.decisionTimesMs.length);
+  return Math.round(
+    state.decisionTimesMs.reduce((a, b) => a + b, 0) / state.decisionTimesMs.length
+  );
 }
