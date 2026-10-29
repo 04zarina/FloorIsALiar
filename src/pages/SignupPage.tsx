@@ -7,6 +7,15 @@ import { Input } from '../components/common/Input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/common/Card';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { Mail, Lock, User, UserPlus, ArrowRight, Disc3 } from 'lucide-react';
+import { signupSchema } from '../lib/validation';
+
+type SignupErrors = {
+  displayName?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+  general?: string;
+};
 
 export const SignupPage: React.FC = () => {
   const { signUp, user, isConfigured } = useAuth();
@@ -17,82 +26,76 @@ export const SignupPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [errors, setErrors] = useState<{
-    displayName?: string;
-    email?: string;
-    password?: string;
-    confirmPassword?: string;
-    general?: string;
-  }>({});
+  const [errors, setErrors] = useState<SignupErrors>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      navigate('/game', { replace: true });
-    }
+    if (user) navigate('/game', { replace: true });
   }, [user, navigate]);
-
-  const validate = () => {
-    const errs: typeof errors = {};
-
-    // Display Name: 3-20 characters constraint
-    if (!displayName.trim()) {
-      errs.displayName = 'Display name is required.';
-    } else if (displayName.trim().length < 3) {
-      errs.displayName = 'Display name must be at least 3 characters.';
-    } else if (displayName.trim().length > 20) {
-      errs.displayName = 'Display name cannot exceed 20 characters.';
-    } else if (!/^[a-zA-Z0-9_ ]+$/.test(displayName.trim())) {
-      errs.displayName = 'Only letters, numbers, spaces, and underscores allowed.';
-    }
-
-    // Email
-    if (!email.trim()) {
-      errs.email = 'Email address is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errs.email = 'Please provide a valid email format.';
-    }
-
-    // Password
-    if (!password) {
-      errs.password = 'Password is required.';
-    } else if (password.length < 6) {
-      errs.password = 'Password must be at least 6 characters.';
-    }
-
-    // Confirm password
-    if (!confirmPassword) {
-      errs.confirmPassword = 'Confirmation password is required.';
-    } else if (password !== confirmPassword) {
-      errs.confirmPassword = 'Passwords do not match.';
-    }
-
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+
+    const parsed = signupSchema.safeParse({ email, password, displayName });
+    const errs: SignupErrors = {};
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0];
+        if ((key === 'email' || key === 'password' || key === 'displayName') && !errs[key]) {
+          errs[key] = issue.message;
+        }
+      }
+    }
+    if (!confirmPassword) errs.confirmPassword = 'Please confirm your password.';
+    else if (password !== confirmPassword) errs.confirmPassword = 'Passwords do not match.';
+
+    if (!parsed.success || Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
 
     setIsLoading(true);
     setErrors({});
 
     try {
-      const { error } = await signUp(email, password, displayName.trim());
+      const { error } = await signUp(parsed.data.email, parsed.data.password, parsed.data.displayName);
       if (error) {
         setErrors({ general: error.message || 'Registration failed.' });
-        addToast(error.message || 'Registration failed', 'error');
+        addToast('Registration failed', 'error');
       } else {
-        addToast('Welcome to the dance floor! Your profile is ready.', 'success');
-        navigate('/game');
+        // If email confirmation is on, there is no session yet: the user must confirm first.
+        // If it is off, the AuthContext session arrives and the effect above redirects to /game.
+        setAwaitingConfirmation(true);
+        addToast('Account created!', 'success');
       }
     } catch {
-      setErrors({ general: 'Unexpected registration anomaly. Please retry.' });
+      setErrors({ general: 'Something went wrong. Please try again.' });
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (awaitingConfirmation && !user) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-12 px-4">
+        <div className="w-full max-w-md rounded-3xl border-3 border-disco-border bg-disco-surface p-8 text-center shadow-retro-xl">
+          <Mail className="w-10 h-10 mx-auto text-disco-mustard" />
+          <h1 className="mt-3 text-2xl font-display text-disco-cream">Check your email</h1>
+          <p className="mt-2 text-sm text-disco-cream-muted">
+            If email confirmation is enabled, we sent a link to <strong>{email.trim().toLowerCase()}</strong>.
+            Click it, then log in. If confirmation is off, you will be signed in automatically.
+          </p>
+          <Link
+            to="/login"
+            className="inline-block mt-5 px-4 py-2 rounded-xl border-2 border-disco-border bg-disco-mustard text-disco-border font-display shadow-retro-sm"
+          >
+            Go to log in
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -101,9 +104,7 @@ export const SignupPage: React.FC = () => {
           <div className="inline-flex w-16 h-16 rounded-2xl bg-disco-mustard border-2 border-disco-border items-center justify-center shadow-retro mb-4">
             <Disc3 className="w-9 h-9 text-disco-border animate-disco-spin" />
           </div>
-          <h1 className="text-3xl font-bold font-display text-disco-cream">
-            Join The Dance Floor
-          </h1>
+          <h1 className="text-3xl font-bold font-display text-disco-cream">Join The Dance Floor</h1>
           <p className="text-sm text-disco-cream-muted mt-1">
             Pick your dancer name and start your high-score streak
           </p>
@@ -119,27 +120,22 @@ export const SignupPage: React.FC = () => {
           <form onSubmit={handleSubmit} noValidate>
             <CardHeader>
               <CardTitle>Create Account</CardTitle>
-              <CardDescription>
-                Sign up to record scores and climb the rankings
-              </CardDescription>
+              <CardDescription>Sign up to record scores and climb the rankings</CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-4">
               {errors.general && (
-                <ErrorMessage
-                  title="Registration Failed"
-                  message={errors.general}
-                  className="mb-2"
-                />
+                <ErrorMessage title="Registration Failed" message={errors.general} className="mb-2" />
               )}
 
               <Input
                 label="Dancer Name"
                 type="text"
                 name="displayName"
+                autoComplete="nickname"
                 required
                 placeholder="DiscoKing_77"
-                helperText="Between 3 and 20 characters"
+                helperText="3 to 20 characters: letters, numbers, spaces, - and _"
                 value={displayName}
                 onChange={(e) => {
                   setDisplayName(e.target.value);
@@ -172,7 +168,7 @@ export const SignupPage: React.FC = () => {
                 autoComplete="new-password"
                 required
                 placeholder="••••••••"
-                helperText="Minimum 6 characters"
+                helperText="At least 8 characters, with a letter and a number"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);

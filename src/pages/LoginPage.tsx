@@ -7,6 +7,10 @@ import { Input } from '../components/common/Input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/common/Card';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { Mail, Lock, LogIn, ArrowRight, Disc3 } from 'lucide-react';
+import { loginSchema } from '../lib/validation';
+import { safeRedirectPath } from '../lib/safeRedirect';
+
+type LoginErrors = { email?: string; password?: string; general?: string };
 
 export const LoginPage: React.FC = () => {
   const { signIn, user, isConfigured } = useAuth();
@@ -16,54 +20,47 @@ export const LoginPage: React.FC = () => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
+  const [errors, setErrors] = useState<LoginErrors>({});
   const [isLoading, setIsLoading] = useState(false);
+
+  const destination = safeRedirectPath(
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
+  );
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (user) {
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/game';
-      navigate(from, { replace: true });
-    }
-  }, [user, navigate, location]);
-
-  const validate = () => {
-    const errs: { email?: string; password?: string } = {};
-    if (!email.trim()) {
-      errs.email = 'Email address is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errs.email = 'Please provide a valid email format.';
-    }
-
-    if (!password) {
-      errs.password = 'Password is required.';
-    } else if (password.length < 6) {
-      errs.password = 'Password must be at least 6 characters.';
-    }
-
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
+    if (user) navigate(destination, { replace: true });
+  }, [user, navigate, destination]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+
+    const parsed = loginSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      const errs: LoginErrors = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0];
+        if ((key === 'email' || key === 'password') && !errs[key]) errs[key] = issue.message;
+      }
+      setErrors(errs);
+      return;
+    }
 
     setIsLoading(true);
     setErrors({});
 
     try {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(parsed.data.email, parsed.data.password);
       if (error) {
-        setErrors({ general: error.message || 'Authentication failed. Please verify credentials.' });
-        addToast(error.message || 'Failed to sign in', 'error');
+        // Generic wording: do not reveal whether the email exists
+        setErrors({ general: 'Sign in failed. Check your email and password, and confirm your email if you just signed up.' });
+        addToast('Failed to sign in', 'error');
       } else {
         addToast('Welcome back to the dance floor!', 'success');
-        const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/game';
-        navigate(from, { replace: true });
+        navigate(destination, { replace: true });
       }
     } catch {
-      setErrors({ general: 'Unexpected system anomaly. Please retry.' });
+      setErrors({ general: 'Something went wrong. Please try again.' });
     } finally {
       setIsLoading(false);
     }
@@ -76,9 +73,7 @@ export const LoginPage: React.FC = () => {
           <div className="inline-flex w-16 h-16 rounded-2xl bg-disco-mustard border-2 border-disco-border items-center justify-center shadow-retro mb-4">
             <Disc3 className="w-9 h-9 text-disco-border animate-disco-spin" />
           </div>
-          <h1 className="text-3xl font-bold font-display text-disco-cream">
-            Welcome Back!
-          </h1>
+          <h1 className="text-3xl font-bold font-display text-disco-cream">Welcome Back!</h1>
           <p className="text-sm text-disco-cream-muted mt-1">
             Sign in to check your dance records and stats
           </p>
@@ -94,18 +89,12 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} noValidate>
             <CardHeader>
               <CardTitle>Sign In</CardTitle>
-              <CardDescription>
-                Enter your email and password to continue
-              </CardDescription>
+              <CardDescription>Enter your email and password to continue</CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-4">
               {errors.general && (
-                <ErrorMessage
-                  title="Sign In Error"
-                  message={errors.general}
-                  className="mb-2"
-                />
+                <ErrorMessage title="Sign In Error" message={errors.general} className="mb-2" />
               )}
 
               <Input
