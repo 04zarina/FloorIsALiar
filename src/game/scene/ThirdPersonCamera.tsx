@@ -16,7 +16,7 @@ export const ThirdPersonCamera: React.FC<ThirdPersonCameraProps> = ({
   playerPosRef,
   isOverview,
 }) => {
-  const { camera, gl } = useThree();
+  const { camera, gl, size } = useThree();
 
   const dragOffset = useRef({ x: 0, y: 0, isDragging: false });
   const startPointer = useRef({ x: 0, y: 0 });
@@ -71,9 +71,11 @@ export const ThirdPersonCamera: React.FC<ThirdPersonCameraProps> = ({
     }
 
     // Third-person: 3.5 behind, 2.5 above, look slightly ahead
-    const BACK = 3.5;
-    const UP = 2.5;
-    const LOOK_AHEAD = 2.5;
+       // Portrait (phones): camera higher and further back so tiles ahead stay visible
+    const portrait = size.width < size.height;
+    const BACK = portrait ? 6.5 : 3.5;
+    const UP = portrait ? 6 : 2.5;
+    const LOOK_AHEAD = portrait ? 4 : 2.5;
 
     const desiredX = px * 0.4 + dragOffset.current.x * 1.5;
     const desiredY = py + UP - dragOffset.current.y * 0.8;

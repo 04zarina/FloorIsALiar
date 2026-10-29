@@ -1,0 +1,13 @@
+PHASE 1: camera and character fix
+* Normalize the player to ~0.7 tile-width tall (currently huge and blocking the view).
+* Follow camera slightly above and behind: ~3.5 back, ~2.5 up, looking at a point just ahead of the player, damped. Set the near plane so the player is never clipped. Keep the overview toggle.
+
+PHASE 2: game logic (plain TS, separate from rendering, Vitest-tested)
+* State machine: ready -> playing -> (roundWon | roundFailed) -> finished. Reset all round counters on restart; no scoring after finish; no double scoring.
+* Each round: announce a rule about a tile color, randomly TRUE or FALSE (seeded RNG so tests are reproducible). Tile colors have real hidden effects: bouncy (launch over the next tile), slippery (slide 2 tiles), crumble (falls after ~1s), safe, speed boost. A false rule means the announced effect is not real (the color behaves differently).
+* Reaching the exit = round won. Falling off or timer expiry (per-round timer) = round failed. 3 lives per run; the run ends at 0 lives or after the last level.
+* Stats: score, rounds survived, falls, trust accuracy (rounds where the player's choice paid off / rounds, safe at zero), combo streak and multiplier, decision time (time from rule announcement to first move; document the method). Score rewards speed, streak and risky routes.
+* Tests: scoring, accuracy at zero attempts, timer transitions, restart reset, rule/effect resolution.
+
+PHASE 3: 3 levels with different layouts
+* Define levels as data (src/game/levels/): Level 1 small grid, short and long route; Level 2 wider grid with gaps and a risky shortcut; Level 3 large, several branches, more tile colors and a faster timer. Each has start, exit and at least 2 routes. Validate with a test that start reaches exit in every level. Add a level indicator and a between-level screen; unlock the next level on win.

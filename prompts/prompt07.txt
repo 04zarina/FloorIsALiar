@@ -1,0 +1,13 @@
+PHASE 5: Supabase (tables profiles and game_sessions with RLS already exist; policies exist for own-row select/insert)
+* Inspect the repo and existing .env use. Never ask for or expose secrets.
+* Write supabase/migrations/002_game_columns.sql (idempotent where possible): add level, rounds_survived, falls, reached_exit to game_sessions, with CHECK constraints. Save sessions through a SECURITY INVOKER RPC or insert that sets user_id from auth.uid() (never client-supplied) and rejects implausible values (score and duration bounds). Add a leaderboard function (SECURITY DEFINER, fixed search_path) that returns ONLY display_name, best score and level, never emails or user ids. Do not add update/delete on game_sessions. Tell me exactly what to paste into the Supabase SQL Editor.
+* Typed data layer: saveSession, getMySessions, getStats, getLeaderboard. Save only after a finished run, once, with error handling and a retry; never fake data.
+* Dashboard (Recharts): total games, best score, average score, trust accuracy, average decision time, score history, recent sessions, leaderboard. Loading, empty and error states.
+* Auth: login/signup/logout work, session persists on refresh, handle expired sessions by redirecting to login, protected routes.
+
+PHASE 6: review
+* Zod validation for forms and payloads; no dangerouslySetInnerHTML; no secrets in git (check .gitignore and git ls-files for .env); npm audit summary; no sensitive console logging.
+* Run build, lint and tests. Fix what fails.
+* README.md: setup, env vars, how to apply migrations, how to run tests, security policies explained, manual test checklist for access isolation (two accounts), and a Remaining Risks section (client-submitted scores can still be faked; say so).
+
+At the start list the files you will change, then begin Phase 1.

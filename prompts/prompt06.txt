@@ -1,0 +1,3 @@
+PHASE 4: audio and VFX
+* Audio via the Web Audio API with synthesized sounds (no downloaded assets): hop, bounce, slide, crumble, fall, combo, win jingle, lose sting, rule announcement, subtle looping disco beat. Start audio only after the Play click. Add a mute toggle that is remembered, and cleanup on unmount.
+* VFX in the disco palette, no neon glow or bloom: confetti burst (instanced particles, gravity, mixed colors) on round win and bigger on level complete; dust puff on landing; tile crack and fall animation for crumble; squash and stretch on bounce; screen shake on fall; combo pop text. Respect prefers-reduced-motion. Reuse shared geometries; dispose on unmount; no allocations in useFrame.
