@@ -21,13 +21,16 @@ export const Lighting: React.FC = () => {
 
   return (
     <>
-      {/* Warm ambient light illuminating the plum dance hall */}
-      <ambientLight color="#381645" intensity={1.2} />
+      {/* Bright warm-white ambient fill: keeps the white character readable */}
+      <ambientLight color="#FFF4DC" intensity={1.7} />
 
-      {/* Warm cream directional key light with soft shadow mapping */}
+      {/* Sky/ground fill: cream from above, grape bounce light from below */}
+      <hemisphereLight args={['#FFF4DC', '#9C41B3', 1.1]} />
+
+      {/* Warm cream key light with soft shadows */}
       <directionalLight
         position={[10, 16, 12]}
-        intensity={1.4}
+        intensity={1.8}
         color="#FFF4DC"
         castShadow
         shadow-mapSize-width={1024}
@@ -41,8 +44,11 @@ export const Lighting: React.FC = () => {
         shadow-bias={-0.0005}
       />
 
-      {/* Gentle fill light from opposite flank */}
-      <directionalLight position={[-10, 8, -10]} intensity={0.4} color="#00A896" />
+      {/* Front fill: lights the side of the character that faces the camera */}
+      <directionalLight position={[0, 6, -12]} intensity={1.2} color="#FFFFFF" />
+
+      {/* Gentle teal fill from the opposite flank */}
+      <directionalLight position={[-10, 8, -10]} intensity={0.5} color="#00A896" />
 
       {/* Soft moving disco spotlight: Mustard Gold */}
       <spotLight

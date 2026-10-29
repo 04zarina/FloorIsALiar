@@ -338,7 +338,9 @@ export const GamePage: React.FC = () => {
             roundsSurvived={game.roundsSurvived}
             falls={game.falls}
             accuracy={accuracy}
+            won={game.lives > 0}
             onPlayAgain={() => beginRound(true)}
+            onReturnToMenu={handleExitToMenu}
           />
         )}
 
