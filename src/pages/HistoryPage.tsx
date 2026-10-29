@@ -1,149 +1,72 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { GameSession } from '../types/database.types';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/common/Card';
-import { Button } from '../components/common/Button';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { EmptyState } from '../components/common/EmptyState';
-import { History, Gamepad2 } from 'lucide-react';
-import { formatTime, formatNumber } from '../lib/utils';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { getMySessions } from '../lib/gameData';
+import { useLoad } from '../lib/useLoad';
 
 export const HistoryPage: React.FC = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
-  const [sessions, setSessions] = useState<GameSession[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchHistory() {
-      if (!isSupabaseConfigured || !user) {
-        setIsLoading(false);
-        return;
-      }
-      try {
-        const { data, error } = await supabase
-          .from('game_sessions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (!error && data) {
-          setSessions(data as GameSession[]);
-        }
-      } catch {
-        // Handled
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchHistory();
-  }, [user]);
-
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center min-h-[60vh]">
-        <LoadingSpinner size="lg" label="Looking Up Your Dance Cards..." />
-      </div>
-    );
-  }
+  const { data, error, loading, reload } = useLoad(() => getMySessions(100));
+  const rows = data ?? [];
 
   return (
-    <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-8">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-disco-mustard border-2 border-disco-border text-disco-border text-xs font-bold font-display uppercase tracking-wider mb-2 shadow-retro-xs">
-            <History className="w-3.5 h-3.5" />
-            <span>Game Records</span>
-          </div>
-          <h1 className="text-3xl font-bold font-display text-disco-cream">
-            Dance Floor History
-          </h1>
-          <p className="text-sm text-disco-cream-muted mt-1">
-            Complete audit trail of all verified runs saved to PostgreSQL.
-          </p>
+    <div className="max-w-5xl mx-auto w-full p-4 sm:p-6 space-y-4">
+      <h1 className="font-display text-3xl text-disco-cream">Game History</h1>
+
+      {loading && <p className="text-disco-cream-muted">Loading…</p>}
+
+      {error && (
+        <div className="rounded-3xl border-3 border-disco-border bg-disco-surface p-4 shadow-retro">
+          <p className="text-disco-pink">Couldn&apos;t load your history: {error}</p>
+          <button type="button" onClick={() => reload()} className="mt-3 px-3 py-1.5 rounded-xl border-2 border-disco-border bg-disco-mustard text-disco-border font-display text-sm">
+            Try again
+          </button>
         </div>
+      )}
 
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => navigate('/game')}
-          leftIcon={<Gamepad2 className="w-4 h-4" />}
-        >
-          New Dance Run
-        </Button>
-      </div>
+      {!loading && !error && rows.length === 0 && (
+        <div className="rounded-3xl border-3 border-disco-border bg-disco-surface p-6 text-center shadow-retro">
+          <p className="text-disco-cream">No runs yet.</p>
+          <Link to="/game" className="inline-block mt-3 px-4 py-2 rounded-xl border-2 border-disco-border bg-disco-pink text-white font-display shadow-retro-sm">
+            Play now
+          </Link>
+        </div>
+      )}
 
-      {/* History Table Card */}
-      <Card className="border-2 border-disco-border shadow-retro">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Session History</CardTitle>
-              <CardDescription>
-                {sessions.length} recorded {sessions.length === 1 ? 'game' : 'games'}
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {sessions.length === 0 ? (
-            <EmptyState
-              icon={<History className="w-6 h-6" />}
-              title="No Past Games Found"
-              description="Play a game on the dance floor to create your first session record."
-              actionLabel="Play Now"
-              onAction={() => navigate('/game')}
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-disco-cream">
-                <thead className="bg-disco-elevated text-xs font-display font-bold uppercase tracking-wider text-disco-cream border-b-2 border-disco-border">
-                  <tr>
-                    <th scope="col" className="px-6 py-4">Date</th>
-                    <th scope="col" className="px-6 py-4">Score</th>
-                    <th scope="col" className="px-6 py-4">Hits / Misses</th>
-                    <th scope="col" className="px-6 py-4">Accuracy</th>
-                    <th scope="col" className="px-6 py-4">Reaction Time</th>
-                    <th scope="col" className="px-6 py-4">Duration</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y-2 divide-disco-border/30 text-xs sm:text-sm">
-                  {sessions.map((s) => (
-                    <tr key={s.id} className="hover:bg-disco-elevated/50 transition-colors">
-                      <td className="px-6 py-4 text-disco-cream-muted">
-                        {new Date(s.created_at).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 font-bold font-display text-disco-cream text-base">
-                        {formatNumber(s.score)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-disco-teal font-bold">{s.hits}</span>
-                        <span className="text-disco-cream-dim mx-1">/</span>
-                        <span className="text-disco-pink font-bold">{s.misses}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-3 py-1 rounded-xl text-xs font-bold border-2 border-disco-border bg-disco-teal text-white shadow-retro-xs">
-                          {s.accuracy}%
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-disco-cream-muted">
-                        {s.avg_reaction_ms} ms
-                      </td>
-                      <td className="px-6 py-4 text-disco-cream-muted">
-                        {formatTime(Number(s.duration_seconds))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {rows.length > 0 && (
+        <div className="overflow-x-auto rounded-3xl border-3 border-disco-border bg-disco-surface shadow-retro">
+          <table className="w-full text-sm text-disco-cream">
+            <thead className="text-left text-disco-cream-muted">
+              <tr>
+                <th className="p-3">Date</th>
+                <th className="p-3">Score</th>
+                <th className="p-3">Level</th>
+                <th className="p-3">Survived</th>
+                <th className="p-3">Falls</th>
+                <th className="p-3">Trust</th>
+                <th className="p-3">Decision</th>
+                <th className="p-3">Time</th>
+                <th className="p-3">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((s) => (
+                <tr key={s.id} className="border-t border-disco-border/40">
+                  <td className="p-3 whitespace-nowrap">{new Date(s.created_at).toLocaleString()}</td>
+                  <td className="p-3 font-bold">{s.score}</td>
+                  <td className="p-3">{s.level}</td>
+                  <td className="p-3">{s.rounds_survived}</td>
+                  <td className="p-3">{s.falls}</td>
+                  <td className="p-3">{Math.round(Number(s.accuracy))}%</td>
+                  <td className="p-3">{(s.avg_reaction_ms / 1000).toFixed(1)}s</td>
+                  <td className="p-3">{s.duration_seconds}s</td>
+                  <td className="p-3">{s.reached_exit ? 'Cleared' : 'Out of lives'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
+
+export default HistoryPage;

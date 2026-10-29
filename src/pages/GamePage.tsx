@@ -14,17 +14,21 @@ import { initAudio, startMusic, stopMusic, play, isMuted, setMuted } from '../ga
 import type { TileType } from '../game/scene/types';
 import {
   createInitialState, restartGame, startRound, recordFirstMove, tickTimer,
-  applyRoundWon, applyRoundFailed, getAccuracy, getNextLevelIndex, type GameState,
+  applyRoundWon, applyRoundFailed, getAccuracy, getAverageDecisionTime, getNextLevelIndex, type GameState,
 } from '../game/logic/gameState';
+import { saveSession } from '../lib/gameData';
 
 export const GamePage: React.FC = () => {
   const stepsRef = useRef(0);
   const visitedRef = useRef<Set<TileType>>(new Set());
   const noticeTimer = useRef<number | null>(null);
   const failReasonRef = useRef<'fell' | 'time'>('time');
+  const runStartRef = useRef(Date.now());
+  const savedRunRef = useRef<number | null>(null);
 
   const [game, setGame] = useState<GameState>(() => createInitialState(LEVELS.length));
   const [paused, setPaused] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [isOverview, setIsOverview] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -108,6 +112,34 @@ export const GamePage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [isActive, paused, pauseGame, resumeGame]);
 
+  // Save a finished run to Supabase (user_id is set server-side)
+  const persistRun = useCallback(async (g: GameState) => {
+    setSaveStatus('saving');
+    try {
+      await saveSession({
+        score: g.score,
+        roundsSurvived: g.roundsSurvived,
+        falls: g.falls,
+        accuracy: getAccuracy(g),
+        avgDecisionMs: getAverageDecisionTime(g),
+        durationSeconds: Math.round((Date.now() - runStartRef.current) / 1000),
+        level: g.levelIndex + 1,
+        reachedExit: g.lives > 0,
+      });
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
+    }
+  }, []);
+
+  // Save exactly once when a run finishes
+  useEffect(() => {
+    if (game.phase !== 'finished') return;
+    if (savedRunRef.current === game.seed) return;
+    savedRunRef.current = game.seed;
+    void persistRun(game);
+  }, [game, persistRun]);
+
   const handleToggleFullscreen = useCallback(() => {
     try {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
@@ -133,6 +165,10 @@ export const GamePage: React.FC = () => {
     stepsRef.current = 0;
     visitedRef.current = new Set();
     failReasonRef.current = 'time';
+    if (fresh) {
+      runStartRef.current = Date.now();
+      setSaveStatus('idle');
+    }
     setPaused(false);
     setCurrentTileId(next.startId);
     setInvalidMoveNotice(null);
@@ -304,6 +340,26 @@ export const GamePage: React.FC = () => {
             accuracy={accuracy}
             onPlayAgain={() => beginRound(true)}
           />
+        )}
+
+        {/* Save status (shown on the game-over screen) */}
+        {game.phase === 'finished' && saveStatus !== 'idle' && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-2xl border-2 border-disco-border bg-disco-surface text-xs font-display text-disco-cream shadow-retro">
+            {saveStatus === 'saving' && <span>Saving your run…</span>}
+            {saveStatus === 'saved' && <span>Run saved to your dashboard ✓</span>}
+            {saveStatus === 'error' && (
+              <>
+                <span>Couldn&apos;t save your run.</span>
+                <button
+                  type="button"
+                  onClick={() => void persistRun(game)}
+                  className="px-2 py-1 rounded-lg border-2 border-disco-border bg-disco-mustard text-disco-border"
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </div>
         )}
 
         {/* Pause menu */}
